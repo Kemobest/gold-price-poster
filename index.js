@@ -140,8 +140,11 @@ function extractPrices(text) {
 }
 
 async function postToFacebook(message, imageBuffer) {
-  const pageId = process.env.FB_PAGE_ID;
-  const accessToken = process.env.FB_ACCESS_TOKEN;
+  const pageId = (process.env.FB_PAGE_ID || '').trim();
+  const accessToken = (process.env.FB_ACCESS_TOKEN || '').trim();
+
+  console.log('DEBUG pageId:', pageId, 'length:', pageId.length);
+  console.log('DEBUG token starts:', accessToken.substring(0, 10));
 
   if (!pageId || !accessToken) {
     throw new Error('ไม่พบ FB_PAGE_ID หรือ FB_ACCESS_TOKEN ใน environment variables');
