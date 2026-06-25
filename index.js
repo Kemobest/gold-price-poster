@@ -143,35 +143,56 @@ async function postToFacebook(message, imageBuffer) {
   const pageId = (process.env.FB_PAGE_ID || '').trim();
   const accessToken = (process.env.FB_ACCESS_TOKEN || '').trim();
 
-  console.log('DEBUG pageId:', pageId, 'length:', pageId.length);
-  console.log('DEBUG token starts:', accessToken.substring(0, 10));
+  console.log(`DEBUG: FB_PAGE_ID length=${pageId.length}, first5chars="${pageId.substring(0,5)}"`);
+  console.log(`DEBUG: FB_ACCESS_TOKEN length=${accessToken.length}, first10chars="${accessToken.substring(0,10)}"`);
 
   if (!pageId || !accessToken) {
     throw new Error('ไม่พบ FB_PAGE_ID หรือ FB_ACCESS_TOKEN ใน environment variables');
   }
 
-  // อัปโหลดรูปภาพก่อน
   console.log('กำลังอัปโหลดรูปภาพไปยัง Facebook...');
   const FormData = require('form-data');
-  const form = new FormData();
-  form.append('source', imageBuffer, { filename: 'gold-price.png', contentType: 'image/png' });
-  form.append('caption', message);
-  form.append('access_token', accessToken);
 
-  const uploadRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photos`, {
+  // ขั้นที่ 1: อัปโหลดรูปแบบ unpublished ก่อน
+  const form1 = new FormData();
+  form1.append('source', imageBuffer, { filename: 'gold-price.png', contentType: 'image/png' });
+  form1.append('published', 'false');
+  form1.append('access_token', accessToken);
+
+  const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
     method: 'POST',
-    body: form,
-    headers: form.getHeaders(),
+    body: form1,
+    headers: form1.getHeaders(),
   });
 
   const uploadData = await uploadRes.json();
-  console.log('ผลการโพสต์:', uploadData);
+  console.log('ผลการอัปโหลดรูป:', uploadData);
 
   if (uploadData.error) {
-    throw new Error(`Facebook API error: ${JSON.stringify(uploadData.error)}`);
+    throw new Error(`Facebook API error (upload): ${JSON.stringify(uploadData.error)}`);
   }
 
-  return uploadData;
+  // ขั้นที่ 2: โพสต์ข้อความพร้อมแนบรูปที่อัปโหลดไว้
+  const photoId = uploadData.id;
+  const form2 = new FormData();
+  form2.append('message', message);
+  form2.append('attached_media[0]', JSON.stringify({ media_fbid: photoId }));
+  form2.append('access_token', accessToken);
+
+  const postRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
+    method: 'POST',
+    body: form2,
+    headers: form2.getHeaders(),
+  });
+
+  const postData = await postRes.json();
+  console.log('ผลการโพสต์:', postData);
+
+  if (postData.error) {
+    throw new Error(`Facebook API error (post): ${JSON.stringify(postData.error)}`);
+  }
+
+  return postData;
 }
 
 async function main() {
