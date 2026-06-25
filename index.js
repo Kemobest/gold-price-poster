@@ -1,32 +1,14 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
-const path = require('path');
 
-// ==========================================
-// การตั้งค่า — แก้ไขตามต้องการ
-// ==========================================
 const CONFIG = {
-  // URL เว็บไซต์ร้านทอง
   websiteUrl: 'https://chomthong-gold-shop.vercel.app/',
-
-  // CSS Selector ของกล่องราคาทองที่ต้องการจับภาพ
-  // ตัวเลือกตามลำดับความน่าจะเป็น — ระบบจะลองทีละตัวจนกว่าจะเจอ
   priceSelectors: [
-    '.gold-price',
-    '.price-card',
-    '.price-container',
-    '[class*="price"]',
-    '[class*="gold"]',
-    'main',
+    '.gold-price', '.price-card', '.price-container',
+    '[class*="price"]', '[class*="gold"]', 'main',
   ],
-
-  // ไฟล์เก็บราคาล่าสุด
   lastPriceFile: 'last_price.json',
-
-  // ขีดจำกัดการเปลี่ยนแปลงราคา (บาท) — ถ้าต่ำกว่านี้ถือว่า "ไม่เปลี่ยน" ไม่โพสต์
   minPriceChangeTHB: 10,
-
-  // ข้อความโพสต์ — แก้ไขได้ตามต้องการ
   postTemplate: (sellPrice, buyPrice, change, changeSymbol, changeText, dateStr, timeStr) => `ราคาทองตอนนี้นะคะ 🏅
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
@@ -52,10 +34,6 @@ https://maps.app.goo.gl/1rDfcVCezRv6auE56
 ทางร้านของเราพร้อมยินดีต้อนรับและให้บริการคุณลูกค้าทุกท่านค่ะ 🥰`,
 };
 
-// ==========================================
-// ฟังก์ชันหลัก
-// ==========================================
-
 function formatPrice(price) {
   return price.toLocaleString('th-TH');
 }
@@ -63,7 +41,8 @@ function formatPrice(price) {
 function loadLastPrice() {
   try {
     if (fs.existsSync(CONFIG.lastPriceFile)) {
-      return JSON.parse(fs.readFileSync(CONFIG.lastPriceFile, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(CONFIG.lastPriceFile, 'utf8'));
+      if (data && data.sell) return data;
     }
   } catch (e) {
     console.log('ไม่พบไฟล์ราคาเก่า จะโพสต์ครั้งแรก');
@@ -80,22 +59,16 @@ async function scrapeGoldPrice() {
   console.log('กำลังเปิดเว็บไซต์...');
   const browser = await chromium.launch();
   const page = await browser.newPage();
-
   await page.setViewportSize({ width: 1200, height: 800 });
   await page.goto(CONFIG.websiteUrl, { waitUntil: 'networkidle', timeout: 30000 });
-
-  // รอให้เนื้อหาโหลด
   await page.waitForTimeout(2000);
 
-  // ดึงข้อความทั้งหมดในหน้าเพื่อ parse ราคา
   const pageText = await page.evaluate(() => document.body.innerText);
-  console.log('ข้อความบนหน้าเว็บ (100 ตัวอักษรแรก):', pageText.substring(0, 200));
+  console.log('ข้อความบนหน้าเว็บ (200 ตัวอักษรแรก):', pageText.substring(0, 200));
 
-  // Parse ราคา — หาตัวเลขที่มีรูปแบบราคาทอง (5 หลักขึ้นไป)
   const prices = extractPrices(pageText);
   console.log('ราคาที่พบ:', prices);
 
-  // จับภาพส่วนราคาทอง
   let screenshotBuffer = null;
   for (const selector of CONFIG.priceSelectors) {
     try {
@@ -105,14 +78,11 @@ async function scrapeGoldPrice() {
         screenshotBuffer = await element.screenshot({ type: 'png' });
         break;
       }
-    } catch (e) {
-      // ลอง selector ถัดไป
-    }
+    } catch (e) {}
   }
 
-  // ถ้าไม่เจอ element ที่ตรง ให้ถ่ายภาพครึ่งบนของหน้า
   if (!screenshotBuffer) {
-    console.log('ไม่พบ selector ที่กำหนด — จับภาพ viewport แทน');
+    console.log('ไม่พบ selector — จับภาพ viewport แทน');
     screenshotBuffer = await page.screenshot({
       type: 'png',
       clip: { x: 0, y: 0, width: 1200, height: 600 },
@@ -124,14 +94,12 @@ async function scrapeGoldPrice() {
 }
 
 function extractPrices(text) {
-  // หาตัวเลขในรูปแบบราคาทอง เช่น 60,000 หรือ 60000
   const matches = text.match(/(\d{1,3}(?:,\d{3})+|\d{5,6})/g) || [];
   const numbers = matches
     .map(m => parseInt(m.replace(/,/g, ''), 10))
-    .filter(n => n >= 30000 && n <= 200000); // กรองเฉพาะช่วงราคาทองที่สมเหตุสมผล
+    .filter(n => n >= 30000 && n <= 200000);
 
   if (numbers.length >= 2) {
-    // สมมติว่าตัวแรกคือราคาขาย ตัวที่สองคือราคารับซื้อ
     return { sell: numbers[0], buy: numbers[1] };
   } else if (numbers.length === 1) {
     return { sell: numbers[0], buy: numbers[0] - 200 };
@@ -150,48 +118,30 @@ async function postToFacebook(message, imageBuffer) {
     throw new Error('ไม่พบ FB_PAGE_ID หรือ FB_ACCESS_TOKEN ใน environment variables');
   }
 
-  console.log('กำลังอัปโหลดรูปภาพไปยัง Facebook...');
   const FormData = require('form-data');
 
-  // ขั้นที่ 1: อัปโหลดรูปแบบ unpublished ก่อน
-  const form1 = new FormData();
-  form1.append('source', imageBuffer, { filename: 'gold-price.png', contentType: 'image/png' });
-  form1.append('published', 'false');
-  form1.append('access_token', accessToken);
+  // โพสต์รูปพร้อม caption ผ่าน /photos (published=true)
+  console.log('กำลังโพสต์ลง Facebook...');
+  const form = new FormData();
+  form.append('caption', message);
+  form.append('source', imageBuffer, { filename: 'gold-price.png', contentType: 'image/png' });
+  form.append('published', 'true');
+  form.append('access_token', accessToken);
 
-  const uploadUrl = `https://graph.facebook.com/v21.0/${pageId}/photos`;
-  console.log("DEBUG upload URL:", uploadUrl);
-  const uploadRes = await fetch(uploadUrl, {
+  const postUrl = `https://graph.facebook.com/v21.0/${pageId}/photos`;
+  console.log('DEBUG post URL:', postUrl);
+
+  const postRes = await fetch(postUrl, {
     method: 'POST',
-    body: form1,
-    headers: form1.getHeaders(),
-  });
-
-  const uploadData = await uploadRes.json();
-  console.log('ผลการอัปโหลดรูป:', uploadData);
-
-  if (uploadData.error) {
-    throw new Error(`Facebook API error (upload): ${JSON.stringify(uploadData.error)}`);
-  }
-
-  // ขั้นที่ 2: โพสต์ข้อความพร้อมแนบรูปที่อัปโหลดไว้
-  const photoId = uploadData.id;
-  const form2 = new FormData();
-  form2.append('message', message);
-  form2.append('attached_media[0]', JSON.stringify({ media_fbid: photoId }));
-  form2.append('access_token', accessToken);
-
-  const postRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
-    method: 'POST',
-    body: form2,
-    headers: form2.getHeaders(),
+    body: form,
+    headers: form.getHeaders(),
   });
 
   const postData = await postRes.json();
   console.log('ผลการโพสต์:', postData);
 
   if (postData.error) {
-    throw new Error(`Facebook API error (post): ${JSON.stringify(postData.error)}`);
+    throw new Error(`Facebook API error: ${JSON.stringify(postData.error)}`);
   }
 
   return postData;
@@ -200,11 +150,9 @@ async function postToFacebook(message, imageBuffer) {
 async function main() {
   console.log('=== เริ่มระบบโพสต์ราคาทองอัตโนมัติ ===');
 
-  // 1. โหลดราคาเก่า
   const lastPrice = loadLastPrice();
   console.log('ราคาก่อนหน้า:', lastPrice);
 
-  // 2. ดึงราคาปัจจุบัน
   const { prices, screenshotBuffer } = await scrapeGoldPrice();
 
   if (!prices) {
@@ -214,29 +162,21 @@ async function main() {
 
   console.log('ราคาปัจจุบัน:', prices);
 
-  // 3. เปรียบเทียบกับราคาก่อนหน้า
   if (lastPrice) {
     const diff = Math.abs(prices.sell - lastPrice.sell);
     if (diff < CONFIG.minPriceChangeTHB) {
-      console.log(`✅ ราคาไม่เปลี่ยนแปลง (ต่างกัน ${diff} บาท < ${CONFIG.minPriceChangeTHB} บาท) — ไม่โพสต์`);
+      console.log(`✅ ราคาไม่เปลี่ยนแปลง (ต่างกัน ${diff} บาท) — ไม่โพสต์`);
       process.exit(0);
     }
   }
 
-  // 4. เตรียมข้อความ
   const now = new Date();
-  // แปลงเป็นเวลาไทย (UTC+7)
   const thaiTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const dateStr = thaiTime.toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC',
+    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
   });
   const timeStr = thaiTime.toLocaleTimeString('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
+    hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
   });
 
   let change = 0;
@@ -245,41 +185,22 @@ async function main() {
 
   if (lastPrice) {
     change = prices.sell - lastPrice.sell;
-    if (change > 0) {
-      changeSymbol = '📈';
-      changeText = 'ราคาเพิ่มขึ้น';
-    } else if (change < 0) {
-      changeSymbol = '📉';
-      changeText = 'ราคาลดลง';
-    }
+    if (change > 0) { changeSymbol = '📈'; changeText = 'ราคาเพิ่มขึ้น'; }
+    else if (change < 0) { changeSymbol = '📉'; changeText = 'ราคาลดลง'; }
   } else {
-    changeSymbol = '🆕';
-    changeText = 'อัพเดทราคา';
-    change = 0;
+    changeSymbol = '🆕'; changeText = 'อัพเดทราคา'; change = 0;
   }
 
   const message = CONFIG.postTemplate(
-    prices.sell,
-    prices.buy,
-    change,
-    changeSymbol,
-    changeText,
-    dateStr,
-    timeStr
+    prices.sell, prices.buy, change, changeSymbol, changeText, dateStr, timeStr
   );
 
   console.log('ข้อความที่จะโพสต์:\n', message);
 
-  // 5. โพสต์ลง Facebook
   await postToFacebook(message, screenshotBuffer);
   console.log('✅ โพสต์สำเร็จแล้ว!');
 
-  // 6. บันทึกราคาล่าสุด
-  saveLastPrice({
-    sell: prices.sell,
-    buy: prices.buy,
-    timestamp: now.toISOString(),
-  });
+  saveLastPrice({ sell: prices.sell, buy: prices.buy, timestamp: now.toISOString() });
 }
 
 main().catch(err => {
