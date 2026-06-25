@@ -159,7 +159,9 @@ async function postToFacebook(message, imageBuffer) {
   form1.append('published', 'false');
   form1.append('access_token', accessToken);
 
-  const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
+  const uploadUrl = `https://graph.facebook.com/v21.0/${pageId}/photos`;
+  console.log("DEBUG upload URL:", uploadUrl);
+  const uploadRes = await fetch(uploadUrl, {
     method: 'POST',
     body: form1,
     headers: form1.getHeaders(),
