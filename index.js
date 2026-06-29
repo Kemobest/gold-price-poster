@@ -3,10 +3,9 @@ const fs = require('fs');
 
 const CONFIG = {
   websiteUrl: 'https://chomthong-gold-shop.vercel.app/',
-  priceSelectors: [
-    '.card-body.items-center.text-center',
-    '[class*="card-body"][class*="items-center"]',
-    'main',
+  priceSelectors: ['.card-body.items-center.text-center', '[class*="card-body"][class*="items-center"]', 'main'],
+    '.gold-price', '.price-card', '.price-container',
+    '[class*="price"]', '[class*="gold"]', 'main',
   ],
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
@@ -60,7 +59,7 @@ async function scrapeGoldPrice() {
   console.log('กำลังเปิดเว็บไซต์...');
   const browser = await chromium.launch();
   const page = await browser.newPage();
-  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.setViewportSize({ width: 800, height: 1000 });
   await page.goto(CONFIG.websiteUrl, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(2000);
 
@@ -77,7 +76,15 @@ async function scrapeGoldPrice() {
       const element = await page.$(selector);
       if (element) {
         console.log(`พบ element ด้วย selector: ${selector}`);
-        screenshotBuffer = await element.screenshot({ type: 'png' });
+        const rawBuffer = await element.screenshot({ type: 'png' });
+        // Crop เป็นสี่เหลี่ยมจัตุรัสโดยใช้ sharp
+        const sharp = require('sharp');
+        const meta = await sharp(rawBuffer).metadata();
+        const size = Math.min(meta.width, meta.height);
+        screenshotBuffer = await sharp(rawBuffer)
+          .resize(size, size, { fit: 'cover', position: 'top' })
+          .png()
+          .toBuffer();
         break;
       }
     } catch (e) {}
