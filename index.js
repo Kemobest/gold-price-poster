@@ -4,8 +4,9 @@ const fs = require('fs');
 const CONFIG = {
   websiteUrl: 'https://chomthong-gold-shop.vercel.app/',
   priceSelectors: ['.card-body.items-center.text-center', '[class*="card-body"][class*="items-center"]', 'main'],
-    '.gold-price', '.price-card', '.price-container',
-    '[class*="price"]', '[class*="gold"]', 'main',
+    '.card-body.items-center.text-center',
+    '[class*="card-body"][class*="items-center"]',
+    'main',
   ],
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
