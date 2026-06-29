@@ -3,7 +3,7 @@ const fs = require('fs');
 
 const CONFIG = {
   websiteUrl: 'https://chomthong-gold-shop.vercel.app/',
-  priceSelectors: ['.card-body.items-center.text-center', '[class*="card-body"][class*="items-center"]', 'main'],
+  priceSelectors: [
     '.card-body.items-center.text-center',
     '[class*="card-body"][class*="items-center"]',
     'main',
