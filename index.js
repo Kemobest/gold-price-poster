@@ -11,7 +11,7 @@ const CONFIG = {
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
   // ปรับค่านี้เพื่อจำลองการซูมหน้าเว็บ: ยิ่งน้อยยิ่งเหมือนซูมออก (เห็น layout กว้างขึ้น กล่องราคาจะเตี้ยลง)
-  zoomFactor: 0.85, // ปรับตรงนี้ได้: ยิ่งน้อยยิ่งซูมออกมาก
+  zoomFactor: 0.75, // ปรับตรงนี้ได้: ยิ่งน้อยยิ่งซูมออกมาก
   postTemplate: (sellPrice, buyPrice, change, changeSymbol, changeText, dateStr, timeStr) => `ราคาทองตอนนี้นะคะ 🏅
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
