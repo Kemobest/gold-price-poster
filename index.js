@@ -11,7 +11,7 @@ const CONFIG = {
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
   // ปรับค่านี้เพื่อจำลองการซูมหน้าเว็บ: ยิ่งน้อยยิ่งเหมือนซูมออก (เห็น layout กว้างขึ้น กล่องราคาจะเตี้ยลง)
-  zoomFactor: 5,
+  zoomFactor: 0.6, // ปรับตรงนี้ได้: ยิ่งน้อยยิ่งซูมออกมาก
   postTemplate: (sellPrice, buyPrice, change, changeSymbol, changeText, dateStr, timeStr) => `ราคาทองตอนนี้นะคะ 🏅
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
@@ -61,26 +61,17 @@ function saveLastPrice(priceData) {
 async function scrapeGoldPrice() {
   console.log('กำลังเปิดเว็บไซต์...');
   const browser = await chromium.launch();
-
-  // จำลองการซูมโดยขยาย viewport จริง แล้วลด deviceScaleFactor
-  // วิธีนี้ทำให้ browser คำนวณ layout ใหม่จริง ๆ เหมือนกด Ctrl+- ในเบราว์เซอร์
-  const baseWidth = 1440;
-  const baseHeight = 1400;
-  const viewportWidth = Math.round(baseWidth / CONFIG.zoomFactor);
-  const viewportHeight = Math.round(baseHeight / CONFIG.zoomFactor);
-
-  const page = await browser.newPage({
-    viewport: { width: viewportWidth, height: viewportHeight },
-  });
-
+  const page = await browser.newPage();
+  await page.setViewportSize({ width: 1440, height: 1400 });
   await page.goto(CONFIG.websiteUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
-  // ใช้ CDP เพื่อบังคับ zoom จริง (เหมือน Ctrl+- ในเบราว์เซอร์ จริง ๆ)
-  const client = await page.context().newCDPSession(page);
-  await client.send('Emulation.setPageScaleFactor', { pageScaleFactor: CONFIG.zoomFactor });
+  // จำลองการซูมหน้าเว็บด้วย CSS zoom (ปรับค่า zoomFactor ใน CONFIG ด้านบนได้)
+  await page.evaluate((zoom) => {
+    document.body.style.zoom = String(zoom);
+  }, CONFIG.zoomFactor);
 
   await page.waitForTimeout(2000);
-  console.log(`DEBUG zoomFactor=${CONFIG.zoomFactor}, viewport=${viewportWidth}x${viewportHeight}`);
+  console.log(`DEBUG zoomFactor=${CONFIG.zoomFactor}`);
 
   const pageText = await page.evaluate(() => document.body.innerText);
   console.log('ข้อความบนหน้าเว็บ (200 ตัวอักษรแรก):', pageText.substring(0, 200));
