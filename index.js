@@ -61,7 +61,7 @@ async function scrapeGoldPrice() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.evaluate(() => { document.body.style.zoom = "0.8"; });
+  await page.evaluate(() => { document.body.style.zoom = "0.4"; });
   await page.goto(CONFIG.websiteUrl, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(2000);
 
