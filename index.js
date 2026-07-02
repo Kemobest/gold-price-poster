@@ -87,23 +87,11 @@ async function scrapeGoldPrice() {
         console.log('พบ element ด้วย selector:', selector);
         const box = await element.boundingBox();
         console.log('DEBUG element box:', JSON.stringify(box));
-        const rawBuffer = await element.screenshot({ type: 'png' });
+        // แคปภาพตามขนาดจริงของ element ไม่เติม padding
+        screenshotBuffer = await element.screenshot({ type: 'png' });
         const sharp = require('sharp');
-        const meta = await sharp(rawBuffer).metadata();
-        const w = meta.width;
-        const h = meta.height;
-        const size = Math.max(w, h);
-        screenshotBuffer = await sharp(rawBuffer)
-          .extend({
-            top: Math.floor((size - h) / 2),
-            bottom: Math.ceil((size - h) / 2),
-            left: Math.floor((size - w) / 2),
-            right: Math.ceil((size - w) / 2),
-            background: { r: 254, g: 249, b: 231, alpha: 1 },
-          })
-          .png()
-          .toBuffer();
-        console.log('ขนาดรูปเดิม:', w, 'x', h, '→ จัตุรัส:', size, 'x', size);
+        const meta = await sharp(screenshotBuffer).metadata();
+        console.log('ขนาดรูปที่แคปได้:', meta.width, 'x', meta.height);
         break;
       }
     } catch (e) {
