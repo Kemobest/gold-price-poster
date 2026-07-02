@@ -11,7 +11,7 @@ const CONFIG = {
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
   // ปรับค่านี้เพื่อจำลองการซูมหน้าเว็บ: ยิ่งน้อยยิ่งเหมือนซูมออก (เห็น layout กว้างขึ้น กล่องราคาจะเตี้ยลง)
-  zoomFactor: 0.5, // ปรับตรงนี้ได้: ยิ่งน้อยยิ่งซูมออกมาก
+  zoomFactor: 0.6, // ปรับตรงนี้ได้: ยิ่งน้อยยิ่งซูมออกมาก
   postTemplate: (sellPrice, buyPrice, change, changeSymbol, changeText, dateStr, timeStr) => `ราคาทองตอนนี้นะคะ 🏅
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
@@ -87,11 +87,31 @@ async function scrapeGoldPrice() {
         console.log('พบ element ด้วย selector:', selector);
         const box = await element.boundingBox();
         console.log('DEBUG element box:', JSON.stringify(box));
-        // แคปภาพตามขนาดจริงของ element ไม่เติม padding
+        // แคปภาพตามขนาดจริงของ element
         screenshotBuffer = await element.screenshot({ type: 'png' });
         const sharp = require('sharp');
         const meta = await sharp(screenshotBuffer).metadata();
         console.log('ขนาดรูปที่แคปได้:', meta.width, 'x', meta.height);
+
+        // ==============================
+        // ปรับกรอบภาพได้ที่นี่ (หน่วยเป็น pixel)
+        // ตัดจากขอบแต่ละด้าน: ยิ่งมากยิ่งตัดเข้ามา
+        // ใส่ 0 ถ้าไม่ต้องการตัดด้านนั้น
+        const cropTop    = 0;   // ตัดจากด้านบน
+        const cropBottom = 0;   // ตัดจากด้านล่าง
+        const cropLeft   = 0;   // ตัดจากด้านซ้าย
+        const cropRight  = 0;   // ตัดจากด้านขวา
+        // ==============================
+
+        const newW = meta.width  - cropLeft - cropRight;
+        const newH = meta.height - cropTop  - cropBottom;
+        if (cropTop || cropBottom || cropLeft || cropRight) {
+          screenshotBuffer = await sharp(screenshotBuffer)
+            .extract({ left: cropLeft, top: cropTop, width: newW, height: newH })
+            .png()
+            .toBuffer();
+          console.log('ขนาดหลัง crop:', newW, 'x', newH);
+        }
         break;
       }
     } catch (e) {
