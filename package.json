@@ -1,0 +1,15 @@
+{
+  "name": "gold-price-auto-poster",
+  "version": "1.0.0",
+  "description": "โพสต์ราคาทองอัตโนมัติลง Facebook Page ทุก 2 ชั่วโมง",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "playwright": "^1.44.0",
+    "sharp": "^0.33.0",
+    "libsodium-wrappers": "^0.7.13"
+  }
+}
