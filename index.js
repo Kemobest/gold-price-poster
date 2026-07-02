@@ -98,7 +98,7 @@ async function scrapeGoldPrice() {
         // ตัดจากขอบแต่ละด้าน: ยิ่งมากยิ่งตัดเข้ามา
         // ใส่ 0 ถ้าไม่ต้องการตัดด้านนั้น
         const cropTop    = 0;   // ตัดจากด้านบน
-        const cropBottom = 100;   // ตัดจากด้านล่าง
+        const cropBottom = 200;   // ตัดจากด้านล่าง
         const cropLeft   = 0;   // ตัดจากด้านซ้าย
         const cropRight  = 0;   // ตัดจากด้านขวา
         // ==============================
