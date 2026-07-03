@@ -2,8 +2,20 @@ name: Post Gold Price to Facebook
 
 on:
   schedule:
-    - cron: '0 2,5,9 * * *'
+    # เวลาไทย 9:30, 12:00, 16:00 น. (UTC = ลบ 7 ชั่วโมง)
+    - cron: '30 2 * * *'   # 09:30 น. ไทย
+    - cron: '0 5 * * *'    # 12:00 น. ไทย
+    - cron: '0 9 * * *'    # 16:00 น. ไทย
   workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode (ดูรูปอย่างเดียว ไม่โพสต์ Facebook)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   post-gold-price:
@@ -31,6 +43,7 @@ jobs:
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: node index.js
 
       - name: Commit screenshot and last price
