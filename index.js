@@ -148,9 +148,9 @@ async function scrapeGoldPrice() {
         // ==============================
         // ปรับกรอบภาพได้ที่นี่ (หน่วยเป็น pixel)
         const cropTop    = 0;
-        const cropBottom = 310;
-        const cropLeft   = 42;
-        const cropRight  = 43;
+        const cropBottom = 0;
+        const cropLeft   = 0;
+        const cropRight  = 0;
         // ==============================
 
         const newW = meta.width  - cropLeft - cropRight;
@@ -162,6 +162,13 @@ async function scrapeGoldPrice() {
             .toBuffer();
           console.log('ขนาดหลัง crop:', newW, 'x', newH);
         }
+
+        // Resize เป็น 1080x1080 ก่อนโพสต์ Facebook (ป้องกันภาพแตก)
+        screenshotBuffer = await sharp(screenshotBuffer)
+          .resize(1080, 1080, { fit: 'contain', background: { r: 254, g: 249, b: 231, alpha: 1 } })
+          .png()
+          .toBuffer();
+        console.log('resize เป็น 1080x1080 สำเร็จ');
         break;
       }
     } catch (e) {
