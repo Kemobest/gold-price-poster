@@ -47,7 +47,7 @@ const CONFIG = {
   ],
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
-  zoomFactor: 1,
+  zoomFactor: 0.8,
 };
 
 function formatPrice(price) {
@@ -119,7 +119,7 @@ async function scrapeGoldPrice() {
   console.log('กำลังเปิดเว็บไซต์...');
   const browser = await chromium.launch();
   const page = await browser.newPage();
-  await page.setViewportSize({ width: 412, height: 915 });
+  await page.setViewportSize({ width: 1440, height: 1400 });
   await page.goto(CONFIG.websiteUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
   await page.evaluate((zoom) => {
@@ -148,9 +148,9 @@ async function scrapeGoldPrice() {
         // ==============================
         // ปรับกรอบภาพได้ที่นี่ (หน่วยเป็น pixel)
         const cropTop    = 0;
-        const cropBottom = 0;
-        const cropLeft   = 0;
-        const cropRight  = 0;
+        const cropBottom = 310;
+        const cropLeft   = 42;
+        const cropRight  = 43;
         // ==============================
 
         const newW = meta.width  - cropLeft - cropRight;
