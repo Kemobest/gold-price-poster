@@ -47,7 +47,7 @@ const CONFIG = {
   ],
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
-  zoomFactor: 0.8,
+  zoomFactor: 0.6,
 };
 
 function formatPrice(price) {
