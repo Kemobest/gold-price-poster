@@ -141,7 +141,7 @@ async function scrapeGoldPrice() {
         // ==============================
         // ปรับกรอบภาพได้ที่นี่ (หน่วยเป็น pixel)
         const cropTop    = 0;
-        const cropBottom = 310;
+        const cropBottom = 760;
         const cropLeft   = 42;
         const cropRight  = 43;
         // ==============================
