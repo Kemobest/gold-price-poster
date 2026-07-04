@@ -1,9 +1,6 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
-// ==============================
-// ประโยคสุ่มตามสถานการณ์ (แก้ไขได้)
-// ==============================
 const SENTENCES = {
   upSmall: [
     'ราคาทองขยับขึ้นเล็กน้อยนะคะ 📈\nใครกำลังติดตามราคาอยู่ แวะเช็กกันได้เลยค่า',
@@ -35,7 +32,6 @@ const SENTENCES = {
   ],
 };
 
-// เกณฑ์แบ่ง "ขึ้น/ลงมาก" (บาท)
 const BIG_CHANGE_THRESHOLD = 1000;
 
 const CONFIG = {
@@ -48,27 +44,24 @@ const CONFIG = {
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
   zoomFactor: 0.6,
+  // deviceScaleFactor: ยิ่งมากยิ่งคมชัด (2=2x, 3=3x) แต่ไฟล์จะใหญ่ขึ้น
+  deviceScaleFactor: 3,
 };
 
 function formatPrice(price) {
   return price.toLocaleString('th-TH');
 }
 
-// เลือกประโยคสุ่มโดยไม่ซ้ำกับครั้งก่อน
 function pickSentence(sentences, lastSentence) {
   const available = sentences.filter(s => s !== lastSentence);
   const pool = available.length > 0 ? available : sentences;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// เลือก sentence pool ตามสถานการณ์
 function getSentencePool(change) {
-  if (change > 0) {
-    return Math.abs(change) >= BIG_CHANGE_THRESHOLD ? SENTENCES.upBig : SENTENCES.upSmall;
-  } else if (change < 0) {
-    return Math.abs(change) >= BIG_CHANGE_THRESHOLD ? SENTENCES.downBig : SENTENCES.downSmall;
-  }
-  return null; // ราคาคงที่ ไม่มีประโยคสุ่ม
+  if (change > 0) return Math.abs(change) >= BIG_CHANGE_THRESHOLD ? SENTENCES.upBig : SENTENCES.upSmall;
+  if (change < 0) return Math.abs(change) >= BIG_CHANGE_THRESHOLD ? SENTENCES.downBig : SENTENCES.downSmall;
+  return null;
 }
 
 function buildPostMessage(sellPrice, buyPrice, change, changeSymbol, changeText, dateStr, timeStr, sentence) {
@@ -118,14 +111,14 @@ function saveLastPrice(priceData) {
 async function scrapeGoldPrice() {
   console.log('กำลังเปิดเว็บไซต์...');
   const browser = await chromium.launch();
-  const page = await browser.newPage();
-  await page.setViewportSize({ width: 1440, height: 1400 });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1400 },
+    deviceScaleFactor: CONFIG.deviceScaleFactor,
+  });
+  const page = await context.newPage();
+
   await page.goto(CONFIG.websiteUrl, { waitUntil: 'networkidle', timeout: 30000 });
-
-  await page.evaluate((zoom) => {
-    document.body.style.zoom = String(zoom);
-  }, CONFIG.zoomFactor);
-
+  await page.evaluate((zoom) => { document.body.style.zoom = String(zoom); }, CONFIG.zoomFactor);
   await page.waitForTimeout(2000);
 
   const pageText = await page.evaluate(() => document.body.innerText);
@@ -153,22 +146,15 @@ async function scrapeGoldPrice() {
         const cropRight  = 43;
         // ==============================
 
-        const newW = meta.width  - cropLeft - cropRight;
-        const newH = meta.height - cropTop  - cropBottom;
         if (cropTop || cropBottom || cropLeft || cropRight) {
+          const newW = meta.width  - cropLeft - cropRight;
+          const newH = meta.height - cropTop  - cropBottom;
           screenshotBuffer = await sharp(screenshotBuffer)
             .extract({ left: cropLeft, top: cropTop, width: newW, height: newH })
             .png()
             .toBuffer();
           console.log('ขนาดหลัง crop:', newW, 'x', newH);
         }
-
-        // Resize เป็น 1080x1080 ก่อนโพสต์ Facebook (ป้องกันภาพแตก)
-        screenshotBuffer = await sharp(screenshotBuffer)
-          .resize(1080, 1080, { fit: 'contain', background: { r: 254, g: 249, b: 231, alpha: 1 } })
-          .png()
-          .toBuffer();
-        console.log('resize เป็น 1080x1080 สำเร็จ');
         break;
       }
     } catch (e) {
@@ -178,10 +164,7 @@ async function scrapeGoldPrice() {
 
   if (!screenshotBuffer) {
     console.log('ไม่พบ selector — จับภาพ viewport แทน');
-    screenshotBuffer = await page.screenshot({
-      type: 'png',
-      clip: { x: 0, y: 0, width: 800, height: 800 },
-    });
+    screenshotBuffer = await page.screenshot({ type: 'png' });
   }
 
   fs.writeFileSync('screenshot.png', screenshotBuffer);
@@ -195,10 +178,10 @@ async function scrapeGoldPrice() {
     execSync('git add screenshot.png');
     execSync('git diff --staged --quiet || git commit -m "Pre-post screenshot"');
     execSync('git push');
-    console.log('Commit รูปสำเร็จ รอให้ GitHub เผยแพร่รูป...');
-    await new Promise(r => setTimeout(r, 5000)); // รอ 5 วินาที
+    console.log('Commit รูปสำเร็จ รอ 5 วินาที...');
+    await new Promise(r => setTimeout(r, 5000));
   } catch (e) {
-    console.log('Commit รูป error (อาจไม่มีการเปลี่ยนแปลง):', e.message);
+    console.log('Commit รูป error:', e.message);
   }
 
   await browser.close();
@@ -210,7 +193,6 @@ function extractPrices(text) {
   const numbers = matches
     .map(m => parseInt(m.replace(/,/g, ''), 10))
     .filter(n => n >= 30000 && n <= 200000);
-
   if (numbers.length >= 2) return { sell: numbers[0], buy: numbers[1] };
   if (numbers.length === 1) return { sell: numbers[0], buy: numbers[0] - 200 };
   return null;
@@ -219,46 +201,36 @@ function extractPrices(text) {
 async function refreshToken(currentToken) {
   const appId = (process.env.FB_APP_ID || '').trim();
   const appSecret = (process.env.FB_APP_SECRET || '').trim();
-
   if (!appId || !appSecret) {
     console.log('ไม่พบ FB_APP_ID หรือ FB_APP_SECRET — ข้าม refresh Token');
     return currentToken;
   }
-
   console.log('กำลัง refresh Token...');
   const url = `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${currentToken}`;
   const res = await fetch(url);
   const data = await res.json();
-
   if (data.error) {
-    console.log('refresh Token ไม่สำเร็จ:', data.error.message, '— ใช้ Token เดิม');
+    console.log('refresh Token ไม่สำเร็จ:', data.error.message);
     return currentToken;
   }
-
   const newToken = data.access_token;
   console.log('refresh Token สำเร็จ — Token ใหม่ขึ้นต้นด้วย:', newToken.substring(0, 10));
 
-  // อัปเดต GitHub Secret อัตโนมัติผ่าน GitHub API
+  // อัปเดต GitHub Secret
   const githubToken = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
-
   if (githubToken && repo) {
     try {
-      // ดึง public key ของ repo
       const keyRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
         headers: { Authorization: `Bearer ${githubToken}`, 'X-GitHub-Api-Version': '2022-11-28' },
       });
       const keyData = await keyRes.json();
-
-      // encrypt Token ด้วย public key ของ GitHub
       const sodium = require('libsodium-wrappers');
       await sodium.ready;
       const binkey = sodium.from_base64(keyData.key, sodium.base64_variants.ORIGINAL);
       const binsec = sodium.from_string(newToken);
       const encBytes = sodium.crypto_box_seal(binsec, binkey);
       const encValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
-
-      // อัปเดต Secret
       const updateRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/FB_ACCESS_TOKEN`, {
         method: 'PUT',
         headers: {
@@ -268,32 +240,23 @@ async function refreshToken(currentToken) {
         },
         body: JSON.stringify({ encrypted_value: encValue, key_id: keyData.key_id }),
       });
-
       if (updateRes.status === 204 || updateRes.status === 201) {
-        console.log('อัปเดต GitHub Secret FB_ACCESS_TOKEN สำเร็จแล้ว');
-      } else {
-        console.log('อัปเดต Secret ไม่สำเร็จ status:', updateRes.status);
+        console.log('อัปเดต GitHub Secret FB_ACCESS_TOKEN สำเร็จ');
       }
     } catch (e) {
       console.log('อัปเดต Secret error:', e.message);
     }
   }
-
   return newToken;
 }
 
-async function postToFacebook(message, imageBuffer) {
+async function postToFacebook(message) {
   const pageId = (process.env.FB_PAGE_ID || '').trim();
   let accessToken = (process.env.FB_ACCESS_TOKEN || '').trim();
-
   if (!pageId || !accessToken) throw new Error('ไม่พบ FB_PAGE_ID หรือ FB_ACCESS_TOKEN');
 
-  // Refresh Token ก่อนโพสต์ทุกครั้ง
   accessToken = await refreshToken(accessToken);
 
-  console.log('กำลังโพสต์รูป+ข้อความลง Facebook...');
-
-  // ใช้ URL ของรูปที่บันทึกไว้ใน GitHub แทนการส่ง binary
   const repo = process.env.GITHUB_REPOSITORY;
   const imageUrl = `https://raw.githubusercontent.com/${repo}/main/screenshot.png?t=${Date.now()}`;
   console.log('DEBUG image URL:', imageUrl);
@@ -310,7 +273,6 @@ async function postToFacebook(message, imageBuffer) {
 
   const postData = await postRes.json();
   console.log('ผลการโพสต์:', postData);
-
   if (postData.error) throw new Error(`Facebook API error: ${JSON.stringify(postData.error)}`);
   return postData;
 }
@@ -321,7 +283,7 @@ async function main() {
   const lastPrice = loadLastPrice();
   console.log('ราคาก่อนหน้า:', lastPrice);
 
-  const { prices, screenshotBuffer } = await scrapeGoldPrice();
+  const { prices } = await scrapeGoldPrice();
 
   if (!prices) {
     console.log('ไม่สามารถดึงราคาทองได้ — หยุดการทำงาน');
@@ -340,50 +302,34 @@ async function main() {
 
   const now = new Date();
   const thaiTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-  const dateStr = thaiTime.toLocaleDateString('th-TH', {
-    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
-  });
-  const timeStr = thaiTime.toLocaleTimeString('th-TH', {
-    hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
-  });
+  const dateStr = thaiTime.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+  const timeStr = thaiTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
-  let change = 0;
-  let changeSymbol = '➡️';
-  let changeText = 'ราคาคงที่';
-
+  let change = 0, changeSymbol = '➡️', changeText = 'ราคาคงที่';
   if (lastPrice) {
     change = prices.sell - lastPrice.sell;
     if (change > 0) { changeSymbol = '📈'; changeText = 'ราคาเพิ่มขึ้น'; }
     else if (change < 0) { changeSymbol = '📉'; changeText = 'ราคาลดลง'; }
   } else {
-    changeSymbol = '🆕'; changeText = 'อัพเดทราคา'; change = 0;
+    changeSymbol = '🆕'; changeText = 'อัพเดทราคา';
   }
 
-  // สุ่มประโยคตามสถานการณ์ โดยไม่ซ้ำกับครั้งก่อน
   const pool = getSentencePool(change);
   const lastSentence = lastPrice ? (lastPrice.lastSentence || '') : '';
   const sentence = pool ? pickSentence(pool, lastSentence) : '';
   console.log('ประโยคที่สุ่มได้:', sentence);
 
-  const message = buildPostMessage(
-    prices.sell, prices.buy, change, changeSymbol, changeText, dateStr, timeStr, sentence
-  );
-
+  const message = buildPostMessage(prices.sell, prices.buy, change, changeSymbol, changeText, dateStr, timeStr, sentence);
   console.log('ข้อความที่จะโพสต์:\n', message);
 
   if (process.env.TEST_MODE === 'true') {
     console.log('TEST MODE — ไม่โพสต์ลง Facebook (ดูรูปได้ที่ screenshot.png ใน Repository)');
   } else {
-    await postToFacebook(message, screenshotBuffer);
+    await postToFacebook(message);
     console.log('โพสต์สำเร็จแล้ว!');
   }
 
-  saveLastPrice({
-    sell: prices.sell,
-    buy: prices.buy,
-    timestamp: now.toISOString(),
-    lastSentence: sentence,
-  });
+  saveLastPrice({ sell: prices.sell, buy: prices.buy, timestamp: now.toISOString(), lastSentence: sentence });
 }
 
 main().catch(err => {
