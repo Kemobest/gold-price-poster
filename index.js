@@ -1,38 +1,6 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
-const SENTENCES = {
-  upSmall: [
-    'ราคาทองขยับขึ้นเล็กน้อยนะคะ 📈\nใครกำลังติดตามราคาอยู่ แวะเช็กกันได้เลยค่า',
-    'ราคาทองมีการปรับขึ้นเบา ๆ แล้วนะคะ ✨\nสายสะสมหรือคนกำลังรอดูจังหวะอย่าลืมติดตามกันน้า',
-    'ทองวันนี้ขยับขึ้นนิดหน่อยค่ะ 😊\nช่วงนี้ราคาเริ่มมีการเคลื่อนไหวแล้ว แวะเช็กราคาไว้ก่อนก็อุ่นใจค่า',
-    'มีการปรับขึ้นเล็กน้อยอีกแล้วนะคะ 💛\nช่วงนี้ราคาค่อนข้างขยับบ่อย ติดตามกันไว้ได้เลยค่ะ',
-    'ราคาทองบวกเพิ่มเล็กน้อยค่า 📊\nใครกำลังรอจังหวะอยู่ อย่าลืมแวะดูอัปเดตเรื่อย ๆ นะคะ',
-  ],
-  upBig: [
-    'ราคาทองปรับขึ้นแรงพอสมควรเลยนะคะ 📈✨\nใครกำลังติดตามอยู่ วันนี้มีความเคลื่อนไหวชัดเจนเลยค่ะ',
-    'วันนี้ทองพุ่งขึ้นค่อนข้างเยอะเลยค่ะ 😮\nช่วงแบบนี้ราคามีการเปลี่ยนแปลงไว แวะติดตามกันใกล้ ๆ นะคะ',
-    'ราคาทองขยับขึ้นแรงกว่าปกติแล้วค่ะ 💛\nใครกำลังวางแผนซื้อหรือขาย ลองเช็กราคาก่อนตัดสินใจกันน้า',
-    'ทองวันนี้ปรับขึ้นแบบเห็นตัวเลขชัดเลยค่ะ 📊\nตลาดมีความคึกคักขึ้นมาพอสมควรเลยนะคะ',
-    'มีการปรับขึ้นค่อนข้างแรงเลยค่า 🔥\nใครรอดูจังหวะอยู่ วันนี้อาจต้องติดตามใกล้ชิดหน่อยแล้วค่ะ',
-  ],
-  downSmall: [
-    'ราคาทองมีการปรับลงเล็กน้อยนะคะ 📉\nใครกำลังติดตามราคาอยู่แวะเช็กกันได้เลยค่า',
-    'ราคาทองขยับลงเบา ๆ ค่ะ 😊\nช่วงนี้ยังมีการเปลี่ยนแปลงอยู่เรื่อย ๆ ติดตามกันไว้ได้น้า',
-    'ทองย่อตัวลงเล็กน้อยค่ะ 💛\nใครกำลังมองจังหวะอยู่ ลองติดตามกันต่อได้เลยค่า',
-    'ราคาวันนี้ลดลงนิดหน่อยนะคะ 📊\nแวะเช็กราคาอัปเดตก่อนตัดสินใจกันได้ค่า',
-    'ทองวันนี้มีการปรับลงเล็กน้อยค่ะ ✨\nช่วงนี้ราคาเริ่มขยับบ่อยขึ้นแล้ว อย่าลืมติดตามกันนะคะ',
-  ],
-  downBig: [
-    'ราคาทองปรับลงค่อนข้างแรงเลยค่ะ 📉\nใครกำลังติดตามอยู่ วันนี้ตัวเลขเปลี่ยนชัดเจนพอสมควรนะคะ',
-    'วันนี้ทองลงแรงกว่าปกติเลยค่ะ 😮\nช่วงนี้ตลาดมีความเคลื่อนไหวมากขึ้น อย่าลืมเช็กราคากันนะคะ',
-    'ราคาทองย่อตัวลงค่อนข้างเยอะ 💛\nใครรอดูจังหวะอยู่ แวะติดตามอัปเดตกันต่อได้เลยค่า',
-    'ทองวันนี้มีการปรับลดค่อนข้างมากค่ะ 📊\nช่วงแบบนี้ราคาเปลี่ยนไวมาก ติดตามกันใกล้ ๆ นะคะ',
-    'มีการปรับลงแรงพอสมควรเลยค่า ✨\nใครกำลังวางแผนซื้อหรือขาย อย่าลืมเช็กราคาล่าสุดกันก่อนนะคะ',
-  ],
-};
-
-const BIG_CHANGE_THRESHOLD = 1000;
 
 const CONFIG = {
   websiteUrl: 'https://chomthong-gold-shop.vercel.app/',
@@ -52,25 +20,11 @@ function formatPrice(price) {
   return price.toLocaleString('th-TH');
 }
 
-function pickSentence(sentences, lastSentence) {
-  const available = sentences.filter(s => s !== lastSentence);
-  const pool = available.length > 0 ? available : sentences;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function getSentencePool(change) {
-  if (change > 0) return Math.abs(change) >= BIG_CHANGE_THRESHOLD ? SENTENCES.upBig : SENTENCES.upSmall;
-  if (change < 0) return Math.abs(change) >= BIG_CHANGE_THRESHOLD ? SENTENCES.downBig : SENTENCES.downSmall;
-  return null;
-}
-
-function buildPostMessage(sellPrice, buyPrice, change, changeSymbol, changeText, dateStr, timeStr, sentence) {
-  const sentenceLine = sentence ? `${sentence}\n.\n` : '';
-  return `${sentenceLine}ราคาทองตอนนี้นะคะ 🏅
+function buildPostMessage(sellPrice, buyPrice, dateStr, timeStr) {
+  return `อัพเดตราคาทองตอนนี้นะคะ 🏅
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
 💛 รับซื้อ บาทละ ${formatPrice(buyPrice)} บาท
-${changeSymbol} ${changeText} ${Math.abs(change)} บาทค่ะ
 .
 🗓️ อัพเดทวันที่ ${dateStr} เวลา ${timeStr} น.
 .
@@ -280,6 +234,20 @@ async function postToFacebook(message) {
 async function main() {
   console.log('=== เริ่มระบบโพสต์ราคาทองอัตโนมัติ ===');
 
+  // เช็คเวลาไทย — โพสต์ได้เฉพาะ 09:30-16:30 น. เท่านั้น
+  const nowCheck = new Date();
+  const thaiNow = new Date(nowCheck.getTime() + 7 * 60 * 60 * 1000);
+  const thaiHour = thaiNow.getUTCHours();
+  const thaiMin = thaiNow.getUTCMinutes();
+  const thaiMinTotal = thaiHour * 60 + thaiMin;
+  const startMin = 9 * 60 + 30;  // 09:30
+  const endMin = 16 * 60 + 30;   // 16:30
+  console.log(`เวลาไทยปัจจุบัน: ${thaiHour}:${String(thaiMin).padStart(2,'0')} น.`);
+  if (thaiMinTotal < startMin || thaiMinTotal > endMin) {
+    console.log('อยู่นอกช่วงเวลาโพสต์ (09:30-16:30 น.) — ไม่โพสต์');
+    process.exit(0);
+  }
+
   const lastPrice = loadLastPrice();
   console.log('ราคาก่อนหน้า:', lastPrice);
 
@@ -305,21 +273,9 @@ async function main() {
   const dateStr = thaiTime.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
   const timeStr = thaiTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
-  let change = 0, changeSymbol = '➡️', changeText = 'ราคาคงที่';
-  if (lastPrice) {
-    change = prices.sell - lastPrice.sell;
-    if (change > 0) { changeSymbol = '📈'; changeText = 'ราคาเพิ่มขึ้น'; }
-    else if (change < 0) { changeSymbol = '📉'; changeText = 'ราคาลดลง'; }
-  } else {
-    changeSymbol = '🆕'; changeText = 'อัพเดทราคา';
-  }
+  let change = lastPrice ? prices.sell - lastPrice.sell : 0;
 
-  const pool = getSentencePool(change);
-  const lastSentence = lastPrice ? (lastPrice.lastSentence || '') : '';
-  const sentence = pool ? pickSentence(pool, lastSentence) : '';
-  console.log('ประโยคที่สุ่มได้:', sentence);
-
-  const message = buildPostMessage(prices.sell, prices.buy, change, changeSymbol, changeText, dateStr, timeStr, sentence);
+  const message = buildPostMessage(prices.sell, prices.buy, dateStr, timeStr);
   console.log('ข้อความที่จะโพสต์:\n', message);
 
   if (process.env.TEST_MODE === 'true') {
@@ -329,7 +285,7 @@ async function main() {
     console.log('โพสต์สำเร็จแล้ว!');
   }
 
-  saveLastPrice({ sell: prices.sell, buy: prices.buy, timestamp: now.toISOString(), lastSentence: sentence });
+  saveLastPrice({ sell: prices.sell, buy: prices.buy, timestamp: now.toISOString() });
 }
 
 main().catch(err => {
