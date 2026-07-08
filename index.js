@@ -21,7 +21,7 @@ function formatPrice(price) {
 }
 
 function buildPostMessage(sellPrice, buyPrice, dateStr, timeStr) {
-  return `อัพเดตราคาทองตอนนี้นะคะ 🏅
+  return `อัพเดตราคาทองตอนนี้นะคะ 😊
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
 💛 รับซื้อ บาทละ ${formatPrice(buyPrice)} บาท
