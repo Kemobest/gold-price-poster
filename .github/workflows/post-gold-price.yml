@@ -3,7 +3,7 @@ name: Post Gold Price to Facebook
 on:
   schedule:
     # เวลาไทย 9:30, 12:00, 16:00 น. (UTC = ลบ 7 ชั่วโมง)
-    - cron: '30 2 * * *'   # 09:30 น. ไทย
+    - cron: '00 5 * * *'   # 12:00 น. ไทย
   workflow_dispatch:
     inputs:
       test_mode:
