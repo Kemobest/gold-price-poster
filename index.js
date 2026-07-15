@@ -152,6 +152,23 @@ function extractPrices(text) {
   return null;
 }
 
+async function deleteLastPost(postId, accessToken) {
+  if (!postId) return;
+  console.log('กำลังลบโพสต์เก่า ID:', postId);
+  const params = new URLSearchParams();
+  params.append('access_token', accessToken);
+  const res = await fetch(`https://graph.facebook.com/v21.0/${postId}`, {
+    method: 'DELETE',
+    body: params,
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.log('ลบโพสต์ไม่สำเร็จ (อาจถูกลบไปแล้ว):', data.error.message);
+  } else {
+    console.log('ลบโพสต์เก่าสำเร็จแล้ว ✅');
+  }
+}
+
 async function refreshToken(currentToken) {
   const appId = (process.env.FB_APP_ID || '').trim();
   const appSecret = (process.env.FB_APP_SECRET || '').trim();
@@ -204,12 +221,15 @@ async function refreshToken(currentToken) {
   return newToken;
 }
 
-async function postToFacebook(message) {
+async function postToFacebook(message, lastPostId) {
   const pageId = (process.env.FB_PAGE_ID || '').trim();
   let accessToken = (process.env.FB_ACCESS_TOKEN || '').trim();
   if (!pageId || !accessToken) throw new Error('ไม่พบ FB_PAGE_ID หรือ FB_ACCESS_TOKEN');
 
   accessToken = await refreshToken(accessToken);
+
+  // ลบโพสต์เก่าก่อน
+  await deleteLastPost(lastPostId, accessToken);
 
   const repo = process.env.GITHUB_REPOSITORY;
   const imageUrl = `https://raw.githubusercontent.com/${repo}/main/screenshot.png?t=${Date.now()}`;
@@ -229,6 +249,9 @@ async function postToFacebook(message) {
   console.log('ผลการโพสต์:', postData);
   if (postData.error) throw new Error(`Facebook API error: ${JSON.stringify(postData.error)}`);
   return postData;
+
+  // คืนค่า post_id เพื่อเก็บไว้ลบครั้งหน้า
+  return postData.post_id || postData.id || null;
 }
 
 async function main() {
@@ -281,8 +304,11 @@ async function main() {
   if (process.env.TEST_MODE === 'true') {
     console.log('TEST MODE — ไม่โพสต์ลง Facebook (ดูรูปได้ที่ screenshot.png ใน Repository)');
   } else {
-    await postToFacebook(message);
-    console.log('โพสต์สำเร็จแล้ว!');
+    const lastPostId = lastPrice ? (lastPrice.lastPostId || null) : null;
+    const newPostId = await postToFacebook(message, lastPostId);
+    console.log('โพสต์สำเร็จแล้ว! Post ID:', newPostId);
+    saveLastPrice({ sell: prices.sell, buy: prices.buy, timestamp: now.toISOString(), lastPostId: newPostId });
+    return;
   }
 
   saveLastPrice({ sell: prices.sell, buy: prices.buy, timestamp: now.toISOString() });
