@@ -38,7 +38,7 @@ function saveLastPrice(priceData) {
 }
 
 function buildPostMessage(sellPrice, buyPrice, dateStr, timeStr) {
-  return `ราคาทองตอนนี้นะคะ 🏅
+  return `อัพเดตราคาทองตอนนี้นะคะ 😊
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
 💛 รับซื้อ บาทละ ${formatPrice(buyPrice)} บาท
