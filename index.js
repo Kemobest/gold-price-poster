@@ -1,7 +1,6 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
-
 const CONFIG = {
   websiteUrl: 'https://chomthong-gold-shop.vercel.app/',
   priceSelectors: [
@@ -12,16 +11,34 @@ const CONFIG = {
   lastPriceFile: 'last_price.json',
   minPriceChangeTHB: 10,
   zoomFactor: 0.6,
-  // deviceScaleFactor: ยิ่งมากยิ่งคมชัด (2=2x, 3=3x) แต่ไฟล์จะใหญ่ขึ้น
   deviceScaleFactor: 3,
+  postStartHour: 9, postStartMin: 30,   // 09:30 น.
+  postEndHour: 16,  postEndMin: 30,     // 16:30 น.
 };
 
 function formatPrice(price) {
   return price.toLocaleString('th-TH');
 }
 
+function loadLastPrice() {
+  try {
+    if (fs.existsSync(CONFIG.lastPriceFile)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG.lastPriceFile, 'utf8'));
+      if (data && data.sell) return data;
+    }
+  } catch (e) {
+    console.log('ไม่พบไฟล์ราคาเก่า จะโพสต์ครั้งแรก');
+  }
+  return null;
+}
+
+function saveLastPrice(priceData) {
+  fs.writeFileSync(CONFIG.lastPriceFile, JSON.stringify(priceData, null, 2), 'utf8');
+  console.log('บันทึกราคาล่าสุดแล้ว:', priceData);
+}
+
 function buildPostMessage(sellPrice, buyPrice, dateStr, timeStr) {
-  return `อัพเดตราคาทองตอนนี้นะคะ 😊
+  return `ราคาทองตอนนี้นะคะ 🏅
 .
 💛 ขายออก บาทละ ${formatPrice(sellPrice)} บาท
 💛 รับซื้อ บาทละ ${formatPrice(buyPrice)} บาท
@@ -43,23 +60,6 @@ https://maps.app.goo.gl/1rDfcVCezRv6auE56
 #ทองคุณภาพได้มาตรฐาน #ค่ากำเหน็จราคาถูก #บริการเป็นกันเอง
 .
 ทางร้านของเราพร้อมยินดีต้อนรับและให้บริการคุณลูกค้าทุกท่านค่ะ 🥰`;
-}
-
-function loadLastPrice() {
-  try {
-    if (fs.existsSync(CONFIG.lastPriceFile)) {
-      const data = JSON.parse(fs.readFileSync(CONFIG.lastPriceFile, 'utf8'));
-      if (data && data.sell) return data;
-    }
-  } catch (e) {
-    console.log('ไม่พบไฟล์ราคาเก่า จะโพสต์ครั้งแรก');
-  }
-  return null;
-}
-
-function saveLastPrice(priceData) {
-  fs.writeFileSync(CONFIG.lastPriceFile, JSON.stringify(priceData, null, 2), 'utf8');
-  console.log('บันทึกราคาล่าสุดแล้ว:', priceData);
 }
 
 async function scrapeGoldPrice() {
@@ -152,23 +152,6 @@ function extractPrices(text) {
   return null;
 }
 
-async function deleteLastPost(postId, accessToken) {
-  if (!postId) return;
-  console.log('กำลังลบโพสต์เก่า ID:', postId);
-  const params = new URLSearchParams();
-  params.append('access_token', accessToken);
-  const res = await fetch(`https://graph.facebook.com/v21.0/${postId}`, {
-    method: 'DELETE',
-    body: params,
-  });
-  const data = await res.json();
-  if (data.error) {
-    console.log('ลบโพสต์ไม่สำเร็จ (อาจถูกลบไปแล้ว):', data.error.message);
-  } else {
-    console.log('ลบโพสต์เก่าสำเร็จแล้ว ✅');
-  }
-}
-
 async function refreshToken(currentToken) {
   const appId = (process.env.FB_APP_ID || '').trim();
   const appSecret = (process.env.FB_APP_SECRET || '').trim();
@@ -185,9 +168,8 @@ async function refreshToken(currentToken) {
     return currentToken;
   }
   const newToken = data.access_token;
-  console.log('refresh Token สำเร็จ — Token ใหม่ขึ้นต้นด้วย:', newToken.substring(0, 10));
+  console.log('refresh Token สำเร็จ');
 
-  // อัปเดต GitHub Secret
   const githubToken = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
   if (githubToken && repo) {
@@ -202,7 +184,7 @@ async function refreshToken(currentToken) {
       const binsec = sodium.from_string(newToken);
       const encBytes = sodium.crypto_box_seal(binsec, binkey);
       const encValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
-      const updateRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/FB_ACCESS_TOKEN`, {
+      await fetch(`https://api.github.com/repos/${repo}/actions/secrets/FB_ACCESS_TOKEN`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${githubToken}`,
@@ -211,14 +193,29 @@ async function refreshToken(currentToken) {
         },
         body: JSON.stringify({ encrypted_value: encValue, key_id: keyData.key_id }),
       });
-      if (updateRes.status === 204 || updateRes.status === 201) {
-        console.log('อัปเดต GitHub Secret FB_ACCESS_TOKEN สำเร็จ');
-      }
+      console.log('อัปเดต GitHub Secret สำเร็จ');
     } catch (e) {
       console.log('อัปเดต Secret error:', e.message);
     }
   }
   return newToken;
+}
+
+async function deleteLastPost(postId, accessToken) {
+  if (!postId) return;
+  console.log('กำลังลบโพสต์เก่า ID:', postId);
+  const params = new URLSearchParams();
+  params.append('access_token', accessToken);
+  const res = await fetch(`https://graph.facebook.com/v21.0/${postId}`, {
+    method: 'DELETE',
+    body: params,
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.log('ลบโพสต์ไม่สำเร็จ (อาจถูกลบไปแล้ว):', data.error.message);
+  } else {
+    console.log('ลบโพสต์เก่าสำเร็จแล้ว ✅');
+  }
 }
 
 async function postToFacebook(message, lastPostId) {
@@ -248,7 +245,6 @@ async function postToFacebook(message, lastPostId) {
   const postData = await postRes.json();
   console.log('ผลการโพสต์:', postData);
   if (postData.error) throw new Error(`Facebook API error: ${JSON.stringify(postData.error)}`);
-  return postData;
 
   // คืนค่า post_id เพื่อเก็บไว้ลบครั้งหน้า
   return postData.post_id || postData.id || null;
@@ -257,14 +253,14 @@ async function postToFacebook(message, lastPostId) {
 async function main() {
   console.log('=== เริ่มระบบโพสต์ราคาทองอัตโนมัติ ===');
 
-  // เช็คเวลาไทย — โพสต์ได้เฉพาะ 09:30-16:30 น. เท่านั้น
+  // เช็คเวลาไทย — โพสต์ได้เฉพาะ 09:30-16:30 น.
   const nowCheck = new Date();
   const thaiNow = new Date(nowCheck.getTime() + 7 * 60 * 60 * 1000);
   const thaiHour = thaiNow.getUTCHours();
   const thaiMin = thaiNow.getUTCMinutes();
   const thaiMinTotal = thaiHour * 60 + thaiMin;
-  const startMin = 9 * 60 + 30;  // 09:30
-  const endMin = 16 * 60 + 30;   // 16:30
+  const startMin = CONFIG.postStartHour * 60 + CONFIG.postStartMin;
+  const endMin = CONFIG.postEndHour * 60 + CONFIG.postEndMin;
   console.log(`เวลาไทยปัจจุบัน: ${thaiHour}:${String(thaiMin).padStart(2,'0')} น.`);
   if (thaiMinTotal < startMin || thaiMinTotal > endMin) {
     console.log('อยู่นอกช่วงเวลาโพสต์ (09:30-16:30 น.) — ไม่โพสต์');
@@ -296,13 +292,11 @@ async function main() {
   const dateStr = thaiTime.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
   const timeStr = thaiTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
-  let change = lastPrice ? prices.sell - lastPrice.sell : 0;
-
   const message = buildPostMessage(prices.sell, prices.buy, dateStr, timeStr);
   console.log('ข้อความที่จะโพสต์:\n', message);
 
   if (process.env.TEST_MODE === 'true') {
-    console.log('TEST MODE — ไม่โพสต์ลง Facebook (ดูรูปได้ที่ screenshot.png ใน Repository)');
+    console.log('TEST MODE — ไม่โพสต์ลง Facebook');
   } else {
     const lastPostId = lastPrice ? (lastPrice.lastPostId || null) : null;
     const newPostId = await postToFacebook(message, lastPostId);
